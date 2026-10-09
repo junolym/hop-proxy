@@ -1,0 +1,1 @@
+import{a as r}from"./auth-CYG0PYiC.js";function o(e){return r.get(`/api/clients/${e}/proxies`)}function n(e,t){return r.post(`/api/clients/${e}/proxies`,t)}function p(e,t){return r.put(`/api/proxies/${e}`,t)}function s(e){return r.del(`/api/proxies/${e}`)}export{n as c,s as d,o as l,p as u};

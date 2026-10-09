@@ -1,0 +1,1 @@
+import{a as t}from"./auth-CYG0PYiC.js";function r(){return t.get("/api/agent-keys")}function s(e){return t.post("/api/agent-keys",e)}function i(e,n){return t.put(`/api/agent-keys/${e}`,n)}function u(e){return t.del(`/api/agent-keys/${e}`)}export{s as c,u as d,r as l,i as u};

@@ -1,0 +1,1 @@
+import{a}from"./auth-CYG0PYiC.js";function o(){return a.get("/api/share-codes")}function s(e){return a.post("/api/share-codes",e)}function d(e,r){return a.put(`/api/share-codes/${e}`,r)}function n(e){return a.del(`/api/share-codes/${e}`)}export{s as c,n as d,o as l,d as u};

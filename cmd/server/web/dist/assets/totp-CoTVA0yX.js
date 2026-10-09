@@ -1,0 +1,1 @@
+import{a as e}from"./auth-CYG0PYiC.js";function p(){return e.get("/api/totp/status")}function s(){return e.get("/api/totp/setup")}function n(t){return e.post("/api/totp/enable",{code:t})}function o(t){return e.post("/api/totp/disable",t)}function r(t){return e.post("/api/totp/reset",t)}function i(t){return e.post("/api/auth/totp",{code:t})}export{o as d,n as e,p as g,r,s,i as v};

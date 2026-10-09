@@ -1,0 +1,38 @@
+services:
+  server:
+    image: docker.nas.example.com/hop-proxy-server:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - hopproxy-data:/data
+    environment:
+      - HP_LISTEN=:8080
+      - HP_DB_PATH=/data/hopproxy.db
+      # 日志按天轮转的时区（logstore 按本地日期切分文件），按部署地区调整
+      # 需镜像内含 tzdata（Dockerfile.server 已安装），否则 TZ 无法解析、回落 UTC
+      - TZ=Asia/Shanghai
+    healthcheck:
+      # HTTP 层健康探测（/healthz 为 Host 无关端点）
+      # 进程内 watchdog 会自探测同一端点，连续失败自动退出交由 restart 策略重启
+      # 若修改 HP_LISTEN 端口，请同步修改此处
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # client 不加健康探测：默认无监听端口，进程挂=容器退出，restart 策略已覆盖
+  client:
+    image: docker.nas.example.com/hop-proxy-client:latest
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      - HP_SERVER=ws://server:8080
+      - HP_CLIENT_ID=${CLIENT_UUID:?请设置 CLIENT_UUID 环境变量}
+      - HP_RECONNECT_INTERVAL=1s
+      # - HP_LISTEN=:8081
+
+volumes:
+  hopproxy-data:

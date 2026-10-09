@@ -1,0 +1,4 @@
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates
+COPY bin/hop-proxy-client /hop-proxy-client
+ENTRYPOINT ["/hop-proxy-client"]

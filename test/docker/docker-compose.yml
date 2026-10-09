@@ -1,0 +1,121 @@
+# HopProxy Integration Test Environment
+#
+# Do NOT start this file directly with `docker compose up`.
+# Use the harness.TestEnv.Start() method, which handles two-phase startup:
+#   1. Start server + backends
+#   2. Register clients via API, capture assigned UUIDs
+#   3. Start client-1 / client-2 with HP_CLIENT_ID_1 / HP_CLIENT_ID_2 env vars
+#
+# Manual teardown: docker compose -f test/docker/docker-compose.yml down -v
+#
+# Services:
+#   - server:       hop-proxy-server on :8080
+#   - client-1:     hop-proxy-client (UUID assigned at startup via HP_CLIENT_ID_1)
+#   - client-2:     hop-proxy-client (UUID assigned at startup via HP_CLIENT_ID_2)
+#   - test-backend: Go HTTP test backend
+#   - test-nginx:   nginx static backend
+
+name: hopproxy-integration-test
+
+services:
+  server:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.server
+    ports:
+      - "18080:8080"
+    volumes:
+      - hopproxy-test-data:/data
+    environment:
+      - HP_LISTEN=:8080
+      - HP_DB_PATH=/data/hopproxy.db
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "--header=Host: hopproxy-admin.test", "http://localhost:8080/api/version"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    networks:
+      hopproxy-test-net:
+        aliases:
+          - hopproxy-admin.test
+          - hopproxy.test
+
+  client-1:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.client
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "19091:9090"
+    environment:
+      - HP_SERVER=ws://hopproxy-admin.test:8080
+      - HP_CLIENT_ID=${HP_CLIENT_ID_1}
+      - HP_RECONNECT_INTERVAL=1s
+      - HP_LISTEN=:9090
+    networks:
+      - hopproxy-test-net
+
+  client-2:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.client
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "19092:9090"
+    environment:
+      - HP_SERVER=ws://hopproxy-admin.test:8080
+      - HP_CLIENT_ID=${HP_CLIENT_ID_2}
+      - HP_RECONNECT_INTERVAL=1s
+      - HP_LISTEN=:9090
+    networks:
+      - hopproxy-test-net
+
+  test-backend:
+    build:
+      context: ../backends
+      dockerfile: ../docker/Dockerfile.test-backend
+    ports:
+      - "18081:8000"
+    networks:
+      - hopproxy-test-net
+
+  test-nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - hopproxy-test-net
+
+  # 安全代理 agent（Noise_KN 加密隧道），forward 到 test-backend:8000
+  # 测试通过创建 agent_key + app（target_url 指向 agent:9000 + agent_key_uuid）触发 agent 路径
+  # agent 支持环境变量 HP_SERVER / HP_UUID / HP_LISTEN / HP_FORWARD
+  test-agent:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.agent
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      - HP_AGENT_SERVER=http://hopproxy-admin.test:8080
+      - HP_AGENT_UUID=${HP_AGENT_UUID}
+      - HP_AGENT_LISTEN=:9000
+      - HP_AGENT_FORWARD=test-backend:8000
+    networks:
+      - hopproxy-test-net
+
+networks:
+  hopproxy-test-net:
+    driver: bridge
+    # Domains hopproxy-admin.test and hopproxy.test resolve to the server container
+    # via the server's network aliases above. This allows client containers to connect
+    # using the admin domain, so the server correctly routes /ws/ to the tunnel handler.
+
+volumes:
+  hopproxy-test-data:

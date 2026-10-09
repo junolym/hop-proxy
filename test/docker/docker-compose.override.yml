@@ -1,0 +1,26 @@
+# Development override: mount local binaries instead of rebuilding Docker images
+# Usage: docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+name: hopproxy-integration-test
+
+services:
+  server:
+    build: ~
+    volumes:
+      - ../../bin/hop-proxy-server:/hop-proxy-server:ro
+      - hopproxy-test-data:/data
+    command: ["/hop-proxy-server"]
+    entrypoint: []
+
+  client-1:
+    build: ~
+    volumes:
+      - ../../bin/hop-proxy-client:/hop-proxy-client:ro
+    command: ["/hop-proxy-client"]
+    entrypoint: []
+
+  client-2:
+    build: ~
+    volumes:
+      - ../../bin/hop-proxy-client:/hop-proxy-client:ro
+    command: ["/hop-proxy-client"]
+    entrypoint: []

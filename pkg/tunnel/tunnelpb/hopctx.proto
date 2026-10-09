@@ -1,0 +1,42 @@
+// HopProxy 隧道请求上下文 wire schema。
+//
+// 单个请求的全部上下文（目标地址、代理策略、限流配置、日志关联）打包为
+// 一个 protobuf 消息，base64url 编码后放入 X-Hop-Ctx 请求头。
+// 选 protobuf 而非 gob 的原因：gob 每次新流编码都会重发类型描述（struct 名 +
+// 字段名 + 字段类型，本消息实测 234B，占单次编码 51%）；protobuf 用字段号
+// 代替字段名，实测体积 611B → 283B（base64 后）。
+//
+// 兼容性约束（与 gob 版一致的"直接切换、两端同时升级"策略）：
+//   - 字段号一旦发布不得变更/复用；新增字段只能用未使用过的号
+//   - 删除字段时保留 reserved（避免字段号被误复用）
+//   - 修改字段类型属于破坏性变更，需要提升 version 字段
+//
+// 重新生成（改动本文件后）：
+//   protoc --plugin=protoc-gen-go=$(which protoc-gen-go) \
+//     --go_out=. --go_opt=paths=source_relative pkg/tunnel/tunnelpb/hopctx.proto
+syntax = "proto3";
+
+package hopproxy.tunnel.v1;
+
+option go_package = "github.com/robin/hop-proxy/pkg/tunnel/tunnelpb";
+
+// HopContext 全链路请求上下文（wire 表示）。
+// 发起端构造，各跳 PopHopContext（读即 pop）/ ApplyTo（转发即重编码）。
+message HopContext {
+  int32 version = 1;           // 协议版本（当前 1；不匹配时明确报错提示未同步升级）
+  string request_id = 2;       // 全链路请求关联 ID（入口生成，各跳透传，#62）
+  string subdomain = 3;        // 请求子域名（日志关联）
+  int64 app_id = 4;            // 命中的应用 ID（日志关联）
+  string original_path = 5;    // 路径改写前的原始路径（#53）
+
+  string target_url = 6;       // 目标地址（带外传递，不占用请求行）
+  string proxy_type = 7;       // 出站代理类型（peer/socks5/shadowsocks）
+  string proxy_address = 8;    // 出站代理地址
+  string peer_secret = 9;      // peer 认证密钥（目标客户端的 peer_secret）
+  string agent_key_uuid = 10;  // agent Transport 密钥 UUID（#52）
+
+  bool limits_set = 11;        // 限流三件套是否已由发起端解析填充（#47）
+  int64 max_body_size = 12;    // 请求体/WS 消息上限（字节，0=不限）
+  int64 connect_timeout_ms = 13; // 连接目标超时（毫秒，0=不限）
+  int64 read_timeout_ms = 14;    // 读响应超时（毫秒，0=不限）
+}
